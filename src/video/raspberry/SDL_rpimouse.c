@@ -32,6 +32,8 @@
 #include "../SDL_sysvideo.h"
 #include "../../events/SDL_mouse_c.h"
 #include "../../events/default_cursor.h"
+#include <linux/input.h>
+#include <fcntl.h>
 
 /* Copied from vc_vchi_dispmanx.h which is bugged and tries to include a non existing file */
 /* Attributes changes flag mask */
@@ -90,6 +92,8 @@ RPI_CreateCursor(SDL_Surface * surface, int hot_x, int hot_y)
     /* This usage is inspired by Wayland/Weston RPI code, how they figured this out is anyone's guess */
     curdata->resource = vc_dispmanx_resource_create(VC_IMAGE_ARGB8888, surface->w | (surface->pitch << 16), surface->h | (surface->h << 16), &dummy);
     SDL_assert(curdata->resource);
+
+    
     vc_dispmanx_rect_set(&dst_rect, 0, 0, curdata->w, curdata->h);
     /* A note from Weston: 
      * vc_dispmanx_resource_write_data() ignores ifmt,
@@ -97,6 +101,7 @@ RPI_CreateCursor(SDL_Surface * surface, int hot_x, int hot_y)
      * the size of the transfer as rect.height * stride.
      * Therefore we can only write rows starting at x=0.
      */
+     
     ret = vc_dispmanx_resource_write_data(curdata->resource, VC_IMAGE_ARGB8888, surface->pitch, surface->pixels, &dst_rect);
     SDL_assert (ret == DISPMANX_SUCCESS);
     
@@ -172,9 +177,14 @@ RPI_ShowCursor(SDL_Cursor * cursor)
 
         env = SDL_GetHint(SDL_HINT_RPI_VIDEO_LAYER);
         if (env) {
-            layer = SDL_atoi(env) + 1;
+			/*Setting the layer to +2 to allow a non-SDL layer to more gracefully
+			  sit between SDL and the cursor.*/
+            layer = SDL_atoi(env) + 2;
         }
-
+        
+        dst_rect.x = mouse->x - curdata->hot_x;
+        dst_rect.y = mouse->y - curdata->hot_y;
+        
         curdata->element = vc_dispmanx_element_add(update,
                                                     data->dispman_display,
                                                     layer,
@@ -225,16 +235,39 @@ RPI_FreeCursor(SDL_Cursor * cursor)
     }
 }
 
-/* Warp the mouse to (x,y) */
 static void
-RPI_WarpMouse(SDL_Window * window, int x, int y)
+RPI_SetCursorPosition(int x, int y)
 {
-    RPI_WarpMouseGlobal(x, y);
+	struct input_event ev;
+	int fd;
+	fd = open("/dev/uinput", O_WRONLY | O_NONBLOCK);
+	memset(&ev, 0, sizeof(struct input_event));
+	gettimeofday(&ev.time,NULL);
+	ev.type = EV_ABS;
+	ev.code = ABS_X;
+	ev.value = x;
+    write(fd, &ev, sizeof(struct input_event));
+	
+    memset(&ev, 0, sizeof(struct input_event));
+    ev.type = EV_SYN;
+    write(fd, &ev, sizeof(struct input_event));
+	
+	memset(&ev, 0, sizeof(struct input_event));
+	ev.type = EV_ABS;
+	ev.code = ABS_Y;
+	ev.value = y;
+	
+	write(fd, &ev, sizeof(struct input_event));
+
+    memset(&ev, 0, sizeof(struct input_event));
+    ev.type = EV_SYN;
+	write(fd, &ev, sizeof(struct input_event));
+	
+	close(fd);
 }
 
-/* Warp the mouse to (x,y) */
 static int
-RPI_WarpMouseGlobal(int x, int y)
+RPI_DrawMouse(int x, int y)
 {
     RPI_CursorData *curdata;
     DISPMANX_UPDATE_HANDLE_T update;
@@ -261,11 +294,12 @@ RPI_WarpMouseGlobal(int x, int y)
     src_rect.y = 0;
     src_rect.width  = curdata->w << 16;
     src_rect.height = curdata->h << 16;
-    dst_rect.x = x;
-    dst_rect.y = y;
+    dst_rect.x = x - curdata->hot_x;
+    dst_rect.y = y - curdata->hot_y;
     dst_rect.width  = curdata->w;
     dst_rect.height = curdata->h;
 
+	
     ret = vc_dispmanx_element_change_attributes(
         update,
         curdata->element,
@@ -276,6 +310,7 @@ RPI_WarpMouseGlobal(int x, int y)
         &src_rect,
         DISPMANX_NO_HANDLE,
         DISPMANX_NO_ROTATE);
+		
     if (ret != DISPMANX_SUCCESS) {
         return SDL_SetError("vc_dispmanx_element_change_attributes() failed");
     }
@@ -286,6 +321,22 @@ RPI_WarpMouseGlobal(int x, int y)
         return SDL_SetError("vc_dispmanx_update_submit() failed");
     }
     return 0;
+}
+	
+
+/* Warp the mouse to (x,y) */
+static void
+RPI_WarpMouse(SDL_Window * window, int x, int y)
+{
+    RPI_WarpMouseGlobal(x, y);
+}
+
+/* Warp the mouse to (x,y) */
+static int
+RPI_WarpMouseGlobal(int x, int y)
+{	
+	RPI_SetCursorPosition(x, y);
+	return RPI_DrawMouse(x, y);
 }
 
 void
@@ -317,7 +368,7 @@ static void
 RPI_MoveCursor(SDL_Cursor * cursor)
 {
     SDL_Mouse *mouse = SDL_GetMouse();
-    RPI_WarpMouse(mouse->focus, mouse->x, mouse->y);
+    RPI_DrawMouse(mouse->x, mouse->y);
 }
 
 #endif /* SDL_VIDEO_DRIVER_RPI */
