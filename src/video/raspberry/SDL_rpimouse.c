@@ -32,8 +32,6 @@
 #include "../SDL_sysvideo.h"
 #include "../../events/SDL_mouse_c.h"
 #include "../../events/default_cursor.h"
-#include <linux/input.h>
-#include <fcntl.h>
 
 /* Copied from vc_vchi_dispmanx.h which is bugged and tries to include a non existing file */
 /* Attributes changes flag mask */
@@ -177,8 +175,8 @@ RPI_ShowCursor(SDL_Cursor * cursor)
 
         env = SDL_GetHint(SDL_HINT_RPI_VIDEO_LAYER);
         if (env) {
-			/*Setting the layer to +2 to allow a non-SDL layer to more gracefully
-			  sit between SDL and the cursor.*/
+            /*Setting the layer to +2 to allow a non-SDL layer to more gracefully
+            sit between SDL and the cursor.*/
             layer = SDL_atoi(env) + 2;
         }
         
@@ -235,37 +233,7 @@ RPI_FreeCursor(SDL_Cursor * cursor)
     }
 }
 
-static void
-RPI_SetCursorPosition(int x, int y)
-{
-	struct input_event ev;
-	int fd;
-	fd = open("/dev/uinput", O_WRONLY | O_NONBLOCK);
-	memset(&ev, 0, sizeof(struct input_event));
-	gettimeofday(&ev.time,NULL);
-	ev.type = EV_ABS;
-	ev.code = ABS_X;
-	ev.value = x;
-    write(fd, &ev, sizeof(struct input_event));
-	
-    memset(&ev, 0, sizeof(struct input_event));
-    ev.type = EV_SYN;
-    write(fd, &ev, sizeof(struct input_event));
-	
-	memset(&ev, 0, sizeof(struct input_event));
-	ev.type = EV_ABS;
-	ev.code = ABS_Y;
-	ev.value = y;
-	
-	write(fd, &ev, sizeof(struct input_event));
-
-    memset(&ev, 0, sizeof(struct input_event));
-    ev.type = EV_SYN;
-	write(fd, &ev, sizeof(struct input_event));
-	
-	close(fd);
-}
-
+/* Draws the mouse cursor at x, y. Does not move the cursor */
 static int
 RPI_DrawMouse(int x, int y)
 {
@@ -299,7 +267,7 @@ RPI_DrawMouse(int x, int y)
     dst_rect.width  = curdata->w;
     dst_rect.height = curdata->h;
 
-	
+
     ret = vc_dispmanx_element_change_attributes(
         update,
         curdata->element,
@@ -310,7 +278,7 @@ RPI_DrawMouse(int x, int y)
         &src_rect,
         DISPMANX_NO_HANDLE,
         DISPMANX_NO_ROTATE);
-		
+
     if (ret != DISPMANX_SUCCESS) {
         return SDL_SetError("vc_dispmanx_element_change_attributes() failed");
     }
@@ -322,7 +290,7 @@ RPI_DrawMouse(int x, int y)
     }
     return 0;
 }
-	
+
 
 /* Warp the mouse to (x,y) */
 static void
@@ -334,8 +302,13 @@ RPI_WarpMouse(SDL_Window * window, int x, int y)
 /* Warp the mouse to (x,y) */
 static int
 RPI_WarpMouseGlobal(int x, int y)
-{	
-	RPI_SetCursorPosition(x, y);
+{
+    SDL_Mouse *mouse = SDL_GetMouse();
+	mouse->last_x = x;
+	mouse->last_y = y;
+	mouse->x = x;
+	mouse->y = y;
+	
 	return RPI_DrawMouse(x, y);
 }
 
@@ -368,6 +341,7 @@ static void
 RPI_MoveCursor(SDL_Cursor * cursor)
 {
     SDL_Mouse *mouse = SDL_GetMouse();
+
     RPI_DrawMouse(mouse->x, mouse->y);
 }
 
