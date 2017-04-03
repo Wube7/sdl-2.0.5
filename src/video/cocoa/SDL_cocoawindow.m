@@ -659,7 +659,7 @@ SetWindowStyle(SDL_Window * window, NSUInteger style)
 
     isFullscreenSpace = NO;
     inFullscreenTransition = NO;
-    
+
     [self windowDidExitFullScreen:nil];
 }
 
@@ -703,16 +703,16 @@ SetWindowStyle(SDL_Window * window, NSUInteger style)
 - (void)windowDidFailToExitFullScreen:(NSNotification *)aNotification
 {
     SDL_Window *window = _data->window;
-    
+
     if (window->is_destroying) {
         return;
     }
 
     SetWindowStyle(window, (NSTitledWindowMask|NSClosableWindowMask|NSMiniaturizableWindowMask|NSResizableWindowMask));
-    
+
     isFullscreenSpace = YES;
     inFullscreenTransition = NO;
-    
+
     [self windowDidEnterFullScreen:nil];
 }
 
@@ -761,7 +761,7 @@ SetWindowStyle(SDL_Window * window, NSUInteger style)
 -(NSApplicationPresentationOptions)window:(NSWindow *)window willUseFullScreenPresentationOptions:(NSApplicationPresentationOptions)proposedOptions
 {
     if ((_data->window->flags & SDL_WINDOW_FULLSCREEN_DESKTOP) == SDL_WINDOW_FULLSCREEN_DESKTOP) {
-        return NSApplicationPresentationFullScreen | NSApplicationPresentationHideDock | NSApplicationPresentationHideMenuBar;
+        return NSApplicationPresentationFullScreen | NSApplicationPresentationHideDock | NSApplicationPresentationHideMenuBar | NSApplicationPresentationDisableCursorLocationAssistance;
     } else {
         return proposedOptions;
     }
@@ -1680,7 +1680,7 @@ Cocoa_DestroyWindow(_THIS, SDL_Window * window)
 
         NSArray *contexts = [[data->nscontexts copy] autorelease];
         for (SDLOpenGLContext *context in contexts) {
-            /* Calling setWindow:NULL causes the context to remove itself from the context list. */            
+            /* Calling setWindow:NULL causes the context to remove itself from the context list. */
             [context setWindow:NULL];
         }
         [data->nscontexts release];
