@@ -56,11 +56,11 @@ NCPUS="1"
 case "$OSTYPE" in
     darwin*)
         NCPU=`sysctl -n hw.ncpu`
-        ;; 
+        ;;
     linux*)
         if [ -n `which nproc` ]; then
             NCPUS=`nproc`
-        fi  
+        fi
         ;;
   *);;
 esac
@@ -115,7 +115,7 @@ echo "public class $ACTIVITY extends SDLActivity {}" >> "$ACTIVITY.java"
 
 # Update project and build
 cd $BUILDPATH
-$ANDROID update project --path $BUILDPATH
+$ANDROID update project --path $BUILDPATH --target android-21
 $NDKBUILD -j $NCPUS $NDKARGS
 $ANT debug
 

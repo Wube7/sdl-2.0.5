@@ -72,8 +72,17 @@ void Android_OnMouse( int androidButton, int action, float x, float y) {
             break;
 
         case ACTION_UP:
-            // Android won't give us the button that originated the ACTION_DOWN event, so we'll
-            // assume it's the one we stored
+            // You know what they say about assumptions.
+            SDLButton = SDL_BUTTON_LEFT;
+            if (androidButton == BUTTON_SECONDARY) {
+                SDLButton = SDL_BUTTON_RIGHT;
+            } else if (androidButton == BUTTON_TERTIARY) {
+                SDLButton = SDL_BUTTON_MIDDLE;
+            } else if (androidButton == BUTTON_FORWARD) {
+                SDLButton = SDL_BUTTON_X1;
+            } else if (androidButton == BUTTON_BACK) {
+                SDLButton = SDL_BUTTON_X2;
+            }
             SDL_SendMouseMotion(Android_Window, 0, 0, x, y);
             SDL_SendMouseButton(Android_Window, 0, SDL_RELEASED, SDLButton);
             break;
@@ -95,4 +104,3 @@ void Android_OnMouse( int androidButton, int action, float x, float y) {
 #endif /* SDL_VIDEO_DRIVER_ANDROID */
 
 /* vi: set ts=4 sw=4 expandtab: */
-
